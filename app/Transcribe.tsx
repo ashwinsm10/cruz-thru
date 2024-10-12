@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -7,53 +13,54 @@ import {
   StyleSheet,
   Animated,
   SafeAreaView,
+  Share,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { Audio } from "expo-av";
+import { Audio, Recording } from "expo-av";
 import { useNavigation } from "@react-navigation/native";
-import { Recording } from "expo-av/build/Audio";
 import * as DocumentPicker from "expo-document-picker";
 
 const { width, height } = Dimensions.get("window");
 
-export const RecordVoiceScreen = () => {
+interface RecordingData {
+  duration: string;
+  file: string | null;
+}
+
+const formatDuration = (millis: number): string => {
+  const minutes = Math.floor(millis / 1000 / 60);
+  const seconds = Math.round((millis / 1000) % 60);
+  return `${minutes}:${seconds < 10 ? `0${seconds}` : seconds}`;
+};
+
+const getFileDuration = async (uri: string): Promise<number> => {
+  const { sound, status } = await Audio.Sound.createAsync({ uri });
+  await sound.unloadAsync();
+  return status.durationMillis || 0;
+};
+
+export const RecordVoiceScreen: React.FC = () => {
   const [recording, setRecording] = useState<Recording | null>(null);
-  const [recordings, setRecordings] = useState<
-    { duration: string; file: string | null }[]
-  >([]);
+  const [recordings, setRecordings] = useState<RecordingData[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [volume, setVolume] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+
   const animationValue = useRef(new Animated.Value(0)).current;
-  const volumeAnimation = useRef(new Animated.Value(0)).current;
+  const playbackInterval = useRef<NodeJS.Timeout | null>(null);
+
   const navigation = useNavigation();
 
   useEffect(() => {
     return () => {
-      if (recording) {
-        recording
-          .getStatusAsync()
-          .then((status) => {
-            if (status.isRecording) {
-              recording.stopAndUnloadAsync().catch((err: Error) => {
-                console.error("Failed to clean up recording", err);
-              });
-            }
-          })
-          .catch((err: Error) => {
-            console.error("Failed to get recording status", err);
-          });
-      }
+      if (recording) stopRecording();
+      if (sound) sound.unloadAsync();
+      if (playbackInterval.current) clearInterval(playbackInterval.current);
     };
-  }, [recording]);
-
-  useEffect(() => {
-    Animated.spring(volumeAnimation, {
-      toValue: volume,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 40,
-    }).start();
-  }, [volume]);
+  }, [recording, sound]);
 
   const startRecording = async () => {
     const permission = await Audio.requestPermissionsAsync();
@@ -64,100 +71,168 @@ export const RecordVoiceScreen = () => {
       });
 
       const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await newRecording.prepareToRecordAsync({
+        android: {
+          extension: ".m4a",
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 48000, 
+          numberOfChannels: 2, 
+          bitRate: 256000,
+        },
+        ios: {
+          extension: ".caf",
+          audioQuality: Audio.IOSAudioQuality.HIGH, 
+          sampleRate: 48000, 
+          numberOfChannels: 2, 
+          bitRate: 256000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: "audio/webm", 
+          bitsPerSecond: 128000, 
+        },
+      });
 
       setRecording(newRecording);
       setIsRecording(true);
-
-      newRecording.setOnRecordingStatusUpdate((status) => {
-        if (status.metering !== undefined) {
-          const normalizedVolume = Math.max(
-            0,
-            Math.min(1, (status.metering + 160) / 160)
-          );
-          setVolume(normalizedVolume);
-        }
-      });
-
       await newRecording.startAsync();
     }
   };
 
   const stopRecording = async () => {
     setIsRecording(false);
-    setVolume(0);
 
     if (recording) {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      const { sound, status } = await recording.createNewLoadedSoundAsync();
 
+      if (sound) {
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            await sound.unloadAsync(); 
+          }
+        } catch (error) {
+          console.error("Error unloading sound:", error);
+        }
+        setSound(null);
+      }
+
+      const { sound: newSound, status } =
+        await recording.createNewLoadedSoundAsync();
       if (uri && status.durationMillis) {
         const newRecordingData = {
-          duration: getDurationFormatted(status.durationMillis),
+          duration: formatDuration(status.durationMillis),
           file: uri,
         };
-        setRecordings((prevRecordings) => [
-          ...prevRecordings,
-          newRecordingData,
-        ]);
+        setRecordings((prev) => [...prev, newRecordingData]);
+        setSound(newSound); 
+        setDuration(status.durationMillis / 1000);
       }
     }
+
     setRecording(null);
+    animateButtons();
   };
 
-  const getDurationFormatted = (millis: number) => {
-    const minutes = millis / 1000 / 60;
-    const minutesDisplay = Math.floor(minutes);
-    const seconds = Math.round((minutes - minutesDisplay) * 60);
-    const secondsDisplay = seconds < 10 ? `0${seconds}` : seconds;
-    return `${minutesDisplay}:${secondsDisplay}`;
+  const animateButtons = () => {
+    Animated.spring(animationValue, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start();
   };
 
   const handleImport = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["audio/*", "video/*"],
-      });
-
-      if (result.assets && result.assets.length > 0) {
-        const { name, uri } = result.assets[0];
-        const duration = await getFileDuration(uri);
-        setRecordings((prevRecordings) => [
-          ...prevRecordings,
-          { duration: getDurationFormatted(duration), file: name },
-        ]);
-      }
-    } catch (error) {
-      console.error("Error picking audio or video file:", error);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["audio/*", "video/*"],
+    });
+    if (result.assets) {
+      const duration = await getFileDuration(result.uri);
+      setRecordings((prev) => [
+        ...prev,
+        { duration: formatDuration(duration), file: result.uri },
+      ]);
+      animateButtons();
     }
   };
 
-  const getFileDuration = async (uri: string): Promise<number> => {
-    const { sound, status } = await Audio.Sound.createAsync({ uri });
-    await sound.unloadAsync();
-    return status.durationMillis || 0;
+  const goToPreviousTranscriptions = useCallback(() => {
+    navigation.navigate("Previous Transcriptions", { recordings });
+  }, [navigation, recordings]);
+
+  const updatePlaybackStatus = useCallback(async () => {
+    if (sound) {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded) {
+        setPosition(status.positionMillis / 1000);
+        if (status.didJustFinish) {
+          setIsPlaying(false);
+          clearInterval(playbackInterval.current!);
+        }
+      }
+    }
+  }, [sound]);
+  const playPauseAudio = async () => {
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync();
+        clearInterval(playbackInterval.current!);
+      } else {
+        const status = await sound.getStatusAsync();
+        if (!status.isLoaded) {
+          await sound.loadAsync({
+            uri: recordings[recordings.length - 1].file,
+          });
+        }
+        await sound.playAsync(); 
+        playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
+      }
+      setIsPlaying(!isPlaying);
+    }
   };
 
-  const goToPreviousTranscriptions = () => {
-    const simplifiedRecordings = recordings.map(({ duration, file }) => ({
-      duration,
-      file,
-    }));
-
-    navigation.navigate("Previous Transcriptions", {
-      recordings: simplifiedRecordings,
-    });
+  const restartAudio = async () => {
+    if (sound) {
+      await sound.stopAsync();
+      await sound.playAsync();
+      setIsPlaying(true);
+      setPosition(0);
+      playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
+    }
   };
 
-  const baseSize = width * 0.3;
-  const maxAdditionalSize = width * 0.2;
-  const interpolatedSize = volumeAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [baseSize, baseSize + maxAdditionalSize],
-  });
+  const shareAudio = async () => {
+    const lastRecording = recordings[recordings.length - 1];
+    if (lastRecording?.file) {
+      await Share.share({ url: lastRecording.file });
+    }
+  };
+
+  const onSliderValueChange = async (value: number) => {
+    if (sound) {
+      await sound.setPositionAsync(value * 1000);
+      setPosition(value);
+    }
+  };
+
+  const viewSummary = useCallback(() => {
+    const lastRecording = recordings[recordings.length - 1];
+    if (lastRecording) {
+      navigation.navigate("Summary", { recording: lastRecording });
+    }
+  }, [recordings, navigation]);
+
+  const viewTranscription = useCallback(() => {
+    const lastRecording = recordings[recordings.length - 1];
+    if (lastRecording) {
+      navigation.navigate("Transcription", { recording: lastRecording });
+    }
+  }, [recordings, navigation]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -172,7 +247,7 @@ export const RecordVoiceScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.centerContainer}>
+        <View style={styles.fixedControlsContainer}>
           <Animated.View
             style={[
               styles.microphoneButton,
@@ -185,12 +260,6 @@ export const RecordVoiceScreen = () => {
                     }),
                   },
                 ],
-                borderRadius: animationValue.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [width * 0.2, 10],
-                }),
-                width: interpolatedSize,
-                height: interpolatedSize,
               },
             ]}
           >
@@ -198,19 +267,96 @@ export const RecordVoiceScreen = () => {
               style={styles.microphoneButtonTouchable}
               onPress={isRecording ? stopRecording : startRecording}
             >
-              <Icon name="microphone" size={60} color="#fff" />
+              <Icon
+                name={isRecording ? "stop" : "microphone"}
+                size={60}
+                color="#000"
+              />
             </TouchableOpacity>
           </Animated.View>
-
           <Text style={styles.recordingStatus}>
             {isRecording ? "Recording..." : "Tap to start recording"}
           </Text>
 
-          <TouchableOpacity style={styles.importButton} onPress={handleImport}>
-            <Icon name="file-upload-outline" size={24} color="#fff" />
-            <Text style={styles.importButtonText}>Import from Files</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.button} onPress={handleImport}>
+              <Icon name="file-upload-outline" size={30} color="#000" />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {recordings.length > 0 && (
+          <Animated.View
+            style={[
+              styles.actionButtonsContainer,
+              {
+                opacity: animationValue,
+                transform: [
+                  {
+                    translateY: animationValue.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.audioControlsRow}>
+              <TouchableOpacity
+                style={styles.audioControlButton}
+                onPress={playPauseAudio}
+              >
+                <Icon
+                  name={isPlaying ? "pause" : "play"}
+                  size={30}
+                  color="#000"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.audioControlButton}
+                onPress={restartAudio}
+              >
+                <Icon name="restart" size={30} color="#000" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.audioControlButton}
+                onPress={shareAudio}
+              >
+                <Icon name="share-variant" size={30} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.sliderContainer}>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={duration}
+                value={position}
+                onValueChange={onSliderValueChange}
+                minimumTrackTintColor="#1a1a1a"
+                maximumTrackTintColor="#000000"
+                thumbTintColor="#1a1a1a"
+              />
+              <View style={styles.timeContainer}>
+                <Text style={styles.timeText}>
+                  {formatDuration(position * 1000)}
+                </Text>
+                <Text style={styles.timeText}>
+                  {formatDuration(duration * 1000)}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.actionButton} onPress={viewSummary}>
+              <Text style={styles.actionButtonText}>View Summary</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={viewTranscription}
+            >
+              <Text style={styles.actionButtonText}>View Transcription</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -224,6 +370,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: width * 0.05,
+    paddingBottom: 0,
   },
   previousTranscriptionsButton: {
     flexDirection: "row",
@@ -240,15 +387,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
+  fixedControlsContainer: {
     alignItems: "center",
+    justifyContent: "center",
+    height: height * 0.4,
   },
   microphoneButton: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#fff",
     width: width * 0.4,
     height: width * 0.4,
+    borderRadius: width * 0.2,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: height * 0.03,
@@ -264,40 +412,89 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  audioVisualizerContainer: {
-    position: "relative",
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
-    height: "100%",
-  },
-  pulseCircle: {
-    position: "absolute",
-  },
-  micIcon: {
-    position: "absolute",
-  },
   recordingStatus: {
     fontSize: 18,
     color: "#333",
     marginBottom: height * 0.03,
   },
-  importButton: {
-    paddingHorizontal: width * 0.04,
-    paddingVertical: 12,
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
+  buttonRow: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
+  },
+  button: {
+    backgroundColor: "#fff",
+    width: width * 0.15,
+    height: width * 0.15,
+    borderRadius: width * 0.075,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: width * 0.05,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  importButtonText: {
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+  },
+  actionButtonsContainer: {
+    alignItems: "center",
+    width: "100%",
+    paddingTop: height * 0.02,
+  },
+  audioControlsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: height * 0.02,
+  },
+  audioControlButton: {
+    backgroundColor: "#fff",
+    width: width * 0.12,
+    height: width * 0.12,
+    borderRadius: width * 0.06,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: width * 0.02,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sliderContainer: {
+    width: "100%",
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+  },
+  timeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  timeText: {
+    fontSize: 12,
+    color: "#333",
+  },
+  actionButton: {
+    backgroundColor: "#1a1a1a",
+    paddingHorizontal: width * 0.04,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    width: "100%",
+    alignItems: "center",
+  },
+  actionButtonText: {
     color: "#fff",
-    marginLeft: 8,
     fontSize: 16,
     fontWeight: "600",
   },

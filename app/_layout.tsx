@@ -13,7 +13,11 @@ export default function App() {
         <Stack.Screen
           name="Lecture Notes"
           component={RecordVoiceScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerTitle: "Lecture Notes",
+            headerStyle: { backgroundColor: "#1a1a1a" },
+            headerTintColor: "#ffffff",
+          }}
         />
         <Stack.Screen
           name="Previous Transcriptions"
