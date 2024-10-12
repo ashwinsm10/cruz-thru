@@ -6,7 +6,7 @@ import google.generativeai as genai
 
 load_dotenv()
 
-genai.configure(api_key="AIzaSyDK2wVNgSe9i3hRz4jJxf6rl370wYBFDpw")
+genai.configure(api_key="")
 
 
 def fetch_transcript():
