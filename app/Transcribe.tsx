@@ -223,7 +223,7 @@ export const RecordVoiceScreen: React.FC = () => {
   const viewSummary = useCallback(() => {
     const lastRecording = recordings[recordings.length - 1];
     if (lastRecording) {
-      navigation.navigate("Summary", { recording: lastRecording });
+      navigation.navigate("Summary", { audioUrl: lastRecording.file });
     }
   }, [recordings, navigation]);
 
