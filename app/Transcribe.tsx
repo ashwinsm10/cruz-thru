@@ -151,16 +151,39 @@ export const RecordVoiceScreen: React.FC = () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ["audio/*", "video/*"],
     });
-    if (result.assets) {
-      const duration = await getFileDuration(result.uri);
-      setRecordings((prev) => [
-        ...prev,
-        { duration: formatDuration(duration), file: result.uri },
-      ]);
-      animateButtons();
+    
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const duration = await getFileDuration(uri);
+      
+      if (sound) {
+        await sound.unloadAsync();
+      }
+      
+      try {
+        const { sound: newSound, status } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: false }
+        );
+        
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+        });
+
+        setSound(newSound);
+        setDuration(status.durationMillis / 1000);
+        setRecordings((prev) => [
+          ...prev,
+          { duration: formatDuration(duration), file: uri },
+        ]);
+        animateButtons();
+      } catch (error) {
+        console.error("Error loading audio:", error);
+      }
     }
   };
-
   const goToPreviousTranscriptions = useCallback(() => {
     navigation.navigate("Previous Transcriptions", { recordings });
   }, [navigation, recordings]);
@@ -183,13 +206,7 @@ export const RecordVoiceScreen: React.FC = () => {
         await sound.pauseAsync();
         clearInterval(playbackInterval.current!);
       } else {
-        const status = await sound.getStatusAsync();
-        if (!status.isLoaded) {
-          await sound.loadAsync({
-            uri: recordings[recordings.length - 1].file,
-          });
-        }
-        await sound.playAsync(); 
+        await sound.playAsync();
         playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
       }
       setIsPlaying(!isPlaying);
