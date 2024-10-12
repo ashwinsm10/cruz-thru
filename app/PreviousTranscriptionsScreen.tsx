@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
+  Animated,
+  StyleSheet,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sharing from "expo-sharing";
@@ -16,6 +17,7 @@ import {
   RotateCcw,
   Share2,
 } from "lucide-react-native";
+import { Swipeable } from "react-native-gesture-handler";
 
 interface Recording {
   file: string;
@@ -33,22 +35,22 @@ interface PreviousTranscriptionsScreenProps {
 const PreviousTranscriptionsScreen: React.FC<
   PreviousTranscriptionsScreenProps
 > = ({ route }) => {
-  const { recordings } = route.params;
-
+  const { recordings: initialRecordings } = route.params;
+  const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
   const [sounds, setSounds] = useState<Array<Audio.Sound | null>>(
-    Array(recordings.length).fill(null)
+    Array(initialRecordings.length).fill(null)
   );
   const [isPlaying, setIsPlaying] = useState<boolean[]>(
-    Array(recordings.length).fill(false)
+    Array(initialRecordings.length).fill(false)
   );
   const [playbackPositions, setPlaybackPositions] = useState<number[]>(
-    Array(recordings.length).fill(0)
+    Array(initialRecordings.length).fill(0)
   );
   const [playbackDurations, setPlaybackDurations] = useState<number[]>(
-    Array(recordings.length).fill(0)
+    Array(initialRecordings.length).fill(0)
   );
   const [hasEnded, setHasEnded] = useState<boolean[]>(
-    Array(recordings.length).fill(false)
+    Array(initialRecordings.length).fill(false)
   );
 
   useEffect(() => {
@@ -191,11 +193,44 @@ const PreviousTranscriptionsScreen: React.FC<
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const getRecordingLines = () => {
-    return recordings.map((recordingLine, index) => (
-      <View key={index} style={styles.recordingContainer}>
+  const handleDeleteRecording = (index: number) => {
+    const fadeAnim = new Animated.Value(1);
+
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      const updatedRecordings = [...recordings];
+      updatedRecordings.splice(index, 1);
+      setRecordings(updatedRecordings);
+    });
+
+    // Adjust the list items to slide up
+    Animated.spring(fadeAnim, {
+      toValue: 0,
+      speed: 5,
+      bounciness: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const renderLeftActions = (index: number) => {
+    return (
+      <TouchableOpacity
+        onPress={() => handleDeleteRecording(index)}
+        style={styles.deleteButton}
+      >
+        <Text style={styles.deleteButtonText}>Delete</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderRecordingItem = ({ item, index }: { item: Recording; index: number }) => (
+    <Swipeable key={index} renderLeftActions={() => renderLeftActions(index)}>
+      <Animated.View style={[styles.recordingContainer]}>
         <Text style={styles.recordingTitle}>
-          Recording {index + 1} - {recordingLine.duration}
+          Recording {index + 1} - {item.duration}
         </Text>
         <View style={styles.controlsContainer}>
           <TouchableOpacity
@@ -217,7 +252,7 @@ const PreviousTranscriptionsScreen: React.FC<
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            onPress={() => Sharing.shareAsync(recordingLine.file)}
+            onPress={() => Sharing.shareAsync(item.file)}
             style={styles.iconButton}
           >
             <Share2 size={32} color="#007AFF" />
@@ -243,13 +278,17 @@ const PreviousTranscriptionsScreen: React.FC<
             </Text>
           </View>
         </View>
-      </View>
-    ));
-  };
+      </Animated.View>
+    </Swipeable>
+  );
 
   return (
     <View style={styles.container}>
-      <ScrollView>{getRecordingLines()}</ScrollView>
+      <FlatList
+        data={recordings}
+        renderItem={renderRecordingItem}
+        keyExtractor={(item, index) => index.toString()}
+      />
     </View>
   );
 };
@@ -279,27 +318,37 @@ const styles = StyleSheet.create({
   controlsContainer: {
     flexDirection: "row",
     justifyContent: "flex-start",
-    alignItems: "center",
     marginBottom: 10,
   },
   iconButton: {
-    marginRight: 20,
+    marginRight: 15,
   },
   progressContainer: {
-    width: "100%",
+    flexDirection: "column",
   },
   slider: {
-    width: "100%",
     height: 40,
   },
   timeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 5,
   },
   timeText: {
     fontSize: 12,
-    color: "#666",
+    color: "#777",
+  },
+  deleteButton: {
+    backgroundColor: "red",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    padding: 10,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  deleteButtonText: {
+    color: "white",
+    fontWeight: "bold",
   },
 });
 
