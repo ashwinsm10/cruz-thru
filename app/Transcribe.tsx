@@ -244,10 +244,10 @@ export const RecordVoiceScreen: React.FC = () => {
     }
   };
 
-  const viewSummary = useCallback(() => {
+  const goToStudyMaterials = useCallback(() => {
     const lastRecording = recordings[recordings.length - 1];
     if (lastRecording) {
-      navigation.navigate("Summary", { audioUrl: lastRecording.file });
+      navigation.navigate("Study Materials", { audioFile: lastRecording.file });
     }
   }, [recordings, navigation]);
 
@@ -370,7 +370,10 @@ export const RecordVoiceScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.actionButton} onPress={viewSummary}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={goToStudyMaterials}
+            >
               <Text style={styles.actionButtonText}>View Summary</Text>
             </TouchableOpacity>
             <TouchableOpacity

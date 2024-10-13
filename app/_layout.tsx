@@ -28,7 +28,7 @@ export default function App() {
             component={PreviousTranscriptionsScreen}
           />
           <Stack.Screen
-            name="Summary"
+            name="Study Materials"
             component={StudyMaterialScreen}
             options={{
               headerTitle: "Summary",
