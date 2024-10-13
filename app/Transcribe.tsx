@@ -17,9 +17,10 @@ import {
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { Audio, Recording } from "expo-av";
+import { Audio } from "expo-av";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
+import { Recording } from "expo-av/build/Audio";
 
 const { width, height } = Dimensions.get("window");
 
@@ -76,23 +77,23 @@ export const RecordVoiceScreen: React.FC = () => {
           extension: ".m4a",
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
           audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 48000, 
-          numberOfChannels: 2, 
+          sampleRate: 48000,
+          numberOfChannels: 2,
           bitRate: 256000,
         },
         ios: {
           extension: ".caf",
-          audioQuality: Audio.IOSAudioQuality.HIGH, 
-          sampleRate: 48000, 
-          numberOfChannels: 2, 
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 48000,
+          numberOfChannels: 2,
           bitRate: 256000,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
         },
         web: {
-          mimeType: "audio/webm", 
-          bitsPerSecond: 128000, 
+          mimeType: "audio/webm",
+          bitsPerSecond: 128000,
         },
       });
 
@@ -113,7 +114,7 @@ export const RecordVoiceScreen: React.FC = () => {
         try {
           const status = await sound.getStatusAsync();
           if (status.isLoaded) {
-            await sound.unloadAsync(); 
+            await sound.unloadAsync();
           }
         } catch (error) {
           console.error("Error unloading sound:", error);
@@ -129,7 +130,7 @@ export const RecordVoiceScreen: React.FC = () => {
           file: uri,
         };
         setRecordings((prev) => [...prev, newRecordingData]);
-        setSound(newSound); 
+        setSound(newSound);
         setDuration(status.durationMillis / 1000);
       }
     }
@@ -151,22 +152,22 @@ export const RecordVoiceScreen: React.FC = () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ["audio/*", "video/*"],
     });
-    
+
     if (result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       const uri = asset.uri;
       const duration = await getFileDuration(uri);
-      
+
       if (sound) {
         await sound.unloadAsync();
       }
-      
+
       try {
         const { sound: newSound, status } = await Audio.Sound.createAsync(
           { uri },
           { shouldPlay: false }
         );
-        
+
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
@@ -206,6 +207,12 @@ export const RecordVoiceScreen: React.FC = () => {
         await sound.pauseAsync();
         clearInterval(playbackInterval.current!);
       } else {
+        const status = await sound.getStatusAsync();
+        if (!status.isLoaded) {
+          await sound.loadAsync({
+            uri: recordings[recordings.length - 1].file,
+          });
+        }
         await sound.playAsync();
         playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
       }
