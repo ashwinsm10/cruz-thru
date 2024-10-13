@@ -2,7 +2,7 @@ import streamlit as st
 
 import google.generativeai as genai
 
-genai.configure(api_key="AIzaSyDgf0MUkoQDvVWc3VNFvq104JCmBtdaOys")
+genai.configure(api_key="API_KEY")
 
 
 def fetch_transcript():
