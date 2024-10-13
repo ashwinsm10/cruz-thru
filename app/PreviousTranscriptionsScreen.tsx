@@ -21,10 +21,8 @@ import {
   Trash2,
   FileText,
 } from "lucide-react-native";
-import { Swipeable } from "react-native-gesture-handler";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 
-// Constants for responsive design
 const { width } = Dimensions.get("window");
 
 interface Recording {
@@ -40,7 +38,9 @@ interface PreviousTranscriptionsScreenProps {
   route: { params: RouteParams };
 }
 
-const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> = ({ route }) => {
+const PreviousTranscriptionsScreen: React.FC<
+  PreviousTranscriptionsScreenProps
+> = ({ route }) => {
   const { recordings: initialRecordings } = route.params;
   const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
   const [sounds, setSounds] = useState<Array<Audio.Sound | null>>(
@@ -218,7 +218,10 @@ const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> 
             updatedRecordings.splice(index, 1);
             setRecordings(updatedRecordings);
 
-            await AsyncStorage.setItem("recordings", JSON.stringify(updatedRecordings));
+            await AsyncStorage.setItem(
+              "recordings",
+              JSON.stringify(updatedRecordings)
+            );
 
             if (sounds[index]) {
               await sounds[index]?.unloadAsync();
@@ -237,54 +240,65 @@ const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> 
     );
   };
 
-  const goToStudyMaterials = useCallback((index: number) => {
-    const recording = recordings[index];
-    if (recording) {
-      navigation.navigate("Study Materials", { audioFile: recording.file });
-    }
-  }, [recordings, navigation]);
+  const goToStudyMaterials = useCallback(
+    (index: number) => {
+      const recording = recordings[index];
+      if (recording) {
+        navigation.navigate("Study Materials", { audioFile: recording.file });
+      }
+    },
+    [recordings, navigation]
+  );
 
-  const renderRecordingItem = ({ item, index }: { item: Recording; index: number }) => (
+  const renderRecordingItem = ({
+    item,
+    index,
+  }: {
+    item: Recording;
+    index: number;
+  }) => (
     <View style={styles.recordingContainer}>
       <Text style={styles.recordingTitle}>
         Recording {index + 1} - {item.duration}
       </Text>
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity
-          onPress={() => togglePlayPause(index)}
-          style={styles.iconButton}
-        >
-          {isPlaying[index] ? (
-            <PauseCircle size={32} color="#007AFF" />
-          ) : (
-            <PlayCircle size={32} color="#007AFF" />
-          )}
-        </TouchableOpacity>
-        {hasEnded[index] && (
+      <View style={styles.controlsAndSummaryContainer}>
+        <View style={styles.controlsContainer}>
           <TouchableOpacity
-            onPress={() => restartRecording(index)}
+            onPress={() => togglePlayPause(index)}
             style={styles.iconButton}
           >
-            <RotateCcw size={32} color="#007AFF" />
+            {isPlaying[index] ? (
+              <PauseCircle size={32} color="#007AFF" />
+            ) : (
+              <PlayCircle size={32} color="#007AFF" />
+            )}
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={() => Sharing.shareAsync(item.file)}
-          style={styles.iconButton}
-        >
-          <Share2 size={32} color="#007AFF" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleDeleteRecording(index)}
-          style={styles.iconButton}
-        >
-          <Trash2 size={32} color="#FF3B30" />
-        </TouchableOpacity>
+          {hasEnded[index] && (
+            <TouchableOpacity
+              onPress={() => restartRecording(index)}
+              style={styles.iconButton}
+            >
+              <RotateCcw size={32} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => Sharing.shareAsync(item.file)}
+            style={styles.iconButton}
+          >
+            <Share2 size={32} color="#007AFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleDeleteRecording(index)}
+            style={styles.iconButton}
+          >
+            <Trash2 size={32} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           onPress={() => goToStudyMaterials(index)}
-          style={[styles.iconButton, styles.viewSummaryButton]}
+          style={styles.viewSummaryButton}
         >
-          <FileText size={32} color="#FFFFFF" />
+          <FileText size={24} color="#FFFFFF" />
           <Text style={styles.viewSummaryText}>View Summary</Text>
         </TouchableOpacity>
       </View>
@@ -310,7 +324,6 @@ const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> 
       </View>
     </View>
   );
-
   return (
     <View style={styles.container}>
       <FlatList
@@ -325,14 +338,14 @@ const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 0.05 * width, // 5% padding based on screen width
+    padding: 0.05 * width,
     backgroundColor: "#F5F5F5",
   },
   recordingContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
-    padding: 0.04 * width, // Padding relative to screen width
-    marginBottom: 0.05 * width, // Margin relative to screen width
+    padding: 0.04 * width,
+    marginBottom: 0.05 * width,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -340,33 +353,22 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   recordingTitle: {
-    fontSize: 0.045 * width, // Font size relative to screen width
+    fontSize: 0.045 * width,
     fontWeight: "bold",
+    marginBottom: 10,
+  },
+  controlsAndSummaryContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   controlsContainer: {
     flexDirection: "row",
-    justifyContent: "flex-start",
-    marginBottom: 10,
     flexWrap: "wrap",
   },
   iconButton: {
     marginRight: 15,
-    marginBottom: 10,
-  },
-  progressContainer: {
-    flexDirection: "column",
-  },
-  slider: {
-    height: 40,
-  },
-  timeContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  timeText: {
-    fontSize: 0.03 * width, // Responsive font size
-    color: "#777",
   },
   viewSummaryButton: {
     flexDirection: "row",
@@ -380,7 +382,21 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginLeft: 8,
     fontWeight: "bold",
+    fontSize: 0.035 * width,
+  },
+  progressContainer: {
+    flexDirection: "column",
+  },
+  slider: {
+    height: 40,
+  },
+  timeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  timeText: {
+    fontSize: 0.03 * width,
+    color: "#777",
   },
 });
-
 export default PreviousTranscriptionsScreen;

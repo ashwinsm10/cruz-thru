@@ -23,7 +23,7 @@ import { Audio } from "expo-av";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import { Recording } from "expo-av/build/Audio";
-import { AVPlaybackStatus } from 'expo-av';
+import { AVPlaybackStatus } from "expo-av";
 const { width, height } = Dimensions.get("window");
 
 interface RecordingData {
@@ -116,47 +116,39 @@ export const RecordVoiceScreen: React.FC = () => {
   const stopRecording = async () => {
     setIsRecording(false);
     if (recordingInterval.current) clearInterval(recordingInterval.current);
-  
+
     if (recording) {
-      try {
-        // Check if the recording is still ongoing before stopping
-        const recordingStatus = await recording.getStatusAsync();
-        if (recordingStatus.isRecording) {
-          await recording.stopAndUnloadAsync();
+      const recordingStatus = await recording.getStatusAsync();
+      if (recordingStatus.isRecording) {
+        await recording.stopAndUnloadAsync();
+      }
+
+      const uri = recording.getURI();
+
+      if (sound) {
+        const soundStatus = await sound.getStatusAsync();
+        if (soundStatus.isLoaded) {
+          await sound.unloadAsync();
         }
-  
-        const uri = recording.getURI();
-  
-        if (sound) {
-          // Check if the sound is loaded before trying to unload
-          const soundStatus = await sound.getStatusAsync();
-          if (soundStatus.isLoaded) {
-            await sound.unloadAsync();  // Only unload if sound is still loaded
-          }
-        }
-  
-        const { sound: newSound, status } = await recording.createNewLoadedSoundAsync();
-        if (uri && status.isLoaded && status.durationMillis) {
-          const newRecordingData =
-           {
-            duration: formatDuration(status.durationMillis),
-            file: uri,
-          };
-          setRecordings((prev) => [...prev, newRecordingData]);
-          setSound(newSound);
-          setDuration(status.durationMillis / 1000);
-        }
-      } catch (error) {
-        console.error("Error stopping or unloading recording:", error);
+      }
+
+      const { sound: newSound, status } =
+        await recording.createNewLoadedSoundAsync();
+      if (uri && status.isLoaded && status.durationMillis) {
+        const newRecordingData = {
+          duration: formatDuration(status.durationMillis),
+          file: uri,
+        };
+        setRecordings((prev) => [...prev, newRecordingData]);
+        setSound(newSound);
+        setDuration(status.durationMillis / 1000);
       }
     }
-  
+
     setRecording(null);
     animateButtons();
     AccessibilityInfo.announceForAccessibility("Recording stopped");
   };
-  
-  
 
   const animateButtons = () => {
     Animated.spring(animationValue, {
@@ -181,33 +173,26 @@ export const RecordVoiceScreen: React.FC = () => {
         await sound.unloadAsync();
       }
 
-      try {
-        const { sound: newSound, status } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: false }
-        );
+      const { sound: newSound, status } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: false }
+      );
 
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-        });
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
 
-        setSound(newSound);
-        setDuration( status.durationMillis / 1000);
-        setRecordings((prev) => [
-          ...prev,
-          { duration: formatDuration(duration), file: uri },
-        ]);
-        animateButtons();
-        AccessibilityInfo.announceForAccessibility(
-          "Audio file imported successfully"
-        );
-      } catch (error) {
-        console.error("Error loading audio:", error);
-        AccessibilityInfo.announceForAccessibility(
-          "Error importing audio file"
-        );
-      }
+      setSound(newSound);
+      setDuration(status.durationMillis / 1000);
+      setRecordings((prev) => [
+        ...prev,
+        { duration: formatDuration(duration), file: uri },
+      ]);
+      animateButtons();
+      AccessibilityInfo.announceForAccessibility(
+        "Audio file imported successfully"
+      );
     }
   };
 
