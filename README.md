@@ -1,50 +1,30 @@
-# Welcome to your Expo app 👋
+# Inspiration
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+One of our team members were previously a Disability Resource Center (DRC) peer notetaker. They realized that there needed to be a self-sufficient and quicker way for DRC students to take notes themselves, allowing for a greater sense of independence. There also needed to be an easier way to create studying tools that required minimal effort from the student.
 
-## Get started
+# What it does
 
-1. Install dependencies
+Our accessible app allows for students to record lectures from their phone and transcribe them with the press of a button. Along with a transcription, cohesive lecture notes are taken and flashcards are automatically created to help students get over the hump of challenges that come with learning disabilities.
+How we built it
 
-   ```bash
-   npm install
-   ```
+1. React Native - front-end
+2. Flask - back-end
+3. Google Gemini and OpenAI Whisper - LLMs
+- We used Whisper to transcribe audio to text.
+- We then used Gemini to create lecture notes from the transcription and flashcards from the lecture notes.
 
-2. Start the app
+# Challenges we ran into
 
-   ```bash
-    npx expo start
-   ```
+The main challenge we ran into was sending data from our react app to the flask back-end. We had to work around network issues and we spent a lot of time formatting the data in a way that is usable by other parts of our program. We also spent a lot of time perfecting UI. None of us are graphics designers so we spent many hours researching designs and tweaking ours.
 
-In the output, you'll find options to open the app in a
+# Accomplishments that we're proud of
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+We are proud of the high-quality features we were able to implement in a short amount of time. Most importantly, we are proud of our clean UI and how our features are seamlessly implemented into it. We worked very hard to create an app that feels simplistic and easy to use. Creating an app with no barriers is something we are proud of.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+# What we learned
 
-## Get a fresh project
+We learned how to pick up tools that we weren't familiar with before. None of us had used LLMs in any of our projects and we also had little to no experience using react and flask. We were really only familiar with python and github. We also learned how to time-manage and only proceed with features that were essential. We originally had a huge list of "must-implement" features, but we later realized that we had to prioritize and push off (but not abandon) really cool ideas that might've taken longer.
 
-When you're ready, run:
+# What's next for Cruz-Thru: Lectures and Notes
 
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Next up we plan to implement timestamps into our transcription. This makes it easy for students to re-watch parts they missed or find important parts of the lecture. We then plan to solidify the storage system and create an more in-depth history of past transcripts and recordings. Finally, we hope to create a logo and theme that represents an underrepresented part of our community. We don't know what this is yet, but we plan on figuring that out in time.

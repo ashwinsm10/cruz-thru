@@ -29,7 +29,7 @@ export default function App() {
             name="Study Materials"
             component={StudyMaterialScreen}
             options={{
-              headerTitle: "Summary",
+              headerTitle: "Study",
               headerStyle: { backgroundColor: "#1a1a1a" },
               headerTintColor: "#ffffff",
             }}

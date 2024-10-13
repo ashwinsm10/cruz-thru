@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Markdown from 'react-native-markdown-display';
 import {
   View,
   Text,
@@ -77,7 +78,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         formData.append("audio_file", audioBlob);
 
-        const response = await fetch("http://10.0.0.124:5001/transcribe", {
+        const response = await fetch("http://169.233.127.22:5001/transcribe", {
           method: "POST",
           body: formData,
           headers: {
@@ -172,7 +173,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
               accessibilityLabel="Summary content"
               accessible={true}
             >
-              <Text style={styles.contentText}>{summaryText}</Text>
+              <Markdown>{summaryText}</Markdown>
             </ScrollView>
           </View>
         ) : (
