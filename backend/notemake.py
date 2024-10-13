@@ -1,12 +1,8 @@
 import streamlit as st
 
-import os
-from dotenv import load_dotenv
 import google.generativeai as genai
 
-load_dotenv()
-
-genai.configure(api_key="")
+genai.configure(api_key="API_KEY")
 
 
 def fetch_transcript():
@@ -37,27 +33,3 @@ def generate_notes(transcript_text):
     model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content(prompt + transcript_text)
     return response.text
-
-def main():
-
-
-    st.title("YouTube Transcript to Detailed Notes Converter")
-    
-
-    subject = st.selectbox("Select Subject:", ["Physics", "Chemistry", "Mathematics", "Data Science and Statistics"])
-
-    if st.button("Get Detailed Notes"):
-        # Call function to extract transcript
-        transcript_text = fetch_transcript()
-        
-        if transcript_text:
-            st.success("Transcript extracted successfully!")
-            # Generate detailed notes
-            detailed_notes = generate_notes(transcript_text, subject)
-            st.markdown("## Detailed Notes:")
-            st.write(detailed_notes)
-        else:
-            st.error("Failed to extract transcript.")
-
-if __name__ == "__main__":
-    main()
