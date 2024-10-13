@@ -8,12 +8,15 @@ import {
   AccessibilityInfo,
   ScrollView,
   Dimensions,
+  TouchableOpacity,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashcardsScreen } from "./ViewFlashcards";
+import Icon from "react-native-vector-icons/FontAwesome";
+import * as Clipboard from "expo-clipboard";
 const { width, height } = Dimensions.get("window");
 
 type StudyMaterialScreenRouteProp = RouteProp<
@@ -40,6 +43,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
   );
   const [summaryText, setSummaryText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copyNotification, setCopyNotification] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -122,6 +126,12 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     announceScreenChange(screenNames[selectedIndex]);
   }, [selectedIndex]);
 
+  const copyToClipboard = (text: string, type: string) => {
+    Clipboard.setStringAsync(text);
+    setCopyNotification(`${type} copied to clipboard`);
+    setTimeout(() => setCopyNotification(null), 2000);
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -148,13 +158,23 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     switch (selectedIndex) {
       case 0:
         return summaryText ? (
-          <ScrollView
-            style={styles.contentContainer}
-            accessibilityLabel="Summary content"
-            accessible={true}
-          >
-            <Text style={styles.contentText}>{summaryText}</Text>
-          </ScrollView>
+          <View style={styles.contentWrapper}>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={() => copyToClipboard(summaryText, "Summary")}
+              accessibilityLabel="Copy summary"
+              accessibilityHint="Double tap to copy the summary to clipboard"
+            >
+              <Icon name="copy" color="#007AFF" size={24} />
+            </TouchableOpacity>
+            <ScrollView
+              style={styles.contentContainer}
+              accessibilityLabel="Summary content"
+              accessible={true}
+            >
+              <Text style={styles.contentText}>{summaryText}</Text>
+            </ScrollView>
+          </View>
         ) : (
           <Text accessibilityLabel="No summary available">
             No summary available
@@ -164,13 +184,25 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
         return <FlashcardsScreen flashcardsData={flashcardsData} />;
       case 2:
         return transcriptionText ? (
-          <ScrollView
-            style={styles.contentContainer}
-            accessibilityLabel="Transcription content"
-            accessible={true}
-          >
-            <Text style={styles.contentText}>{transcriptionText}</Text>
-          </ScrollView>
+          <View style={styles.contentWrapper}>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={() =>
+                copyToClipboard(transcriptionText, "Transcription")
+              }
+              accessibilityLabel="Copy transcription"
+              accessibilityHint="Double tap to copy the transcription to clipboard"
+            >
+              <Icon name="copy" color="#007AFF" size={24} />
+            </TouchableOpacity>
+            <ScrollView
+              style={styles.contentContainer}
+              accessibilityLabel="Transcription content"
+              accessible={true}
+            >
+              <Text style={styles.contentText}>{transcriptionText}</Text>
+            </ScrollView>
+          </View>
         ) : (
           <Text accessibilityLabel="No transcription available">
             No transcription available
@@ -196,6 +228,11 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
           accessibilityHint="Double tap to switch between Summary, Flashcards, and Transcriptions"
         />
         {renderContent()}
+        {copyNotification && (
+          <View style={styles.notificationContainer}>
+            <Text style={styles.notificationText}>{copyNotification}</Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -208,11 +245,11 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: width * 0.05, 
-    paddingVertical: height * 0.02, 
+    paddingHorizontal: width * 0.05,
+    paddingVertical: height * 0.02,
   },
   segmentedControl: {
-    marginBottom: height * 0.02,  
+    marginBottom: height * 0.02,
   },
   loadingContainer: {
     flex: 1,
@@ -223,18 +260,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: width * 0.05,  
+    paddingHorizontal: width * 0.05,
   },
   errorText: {
     color: "red",
-    fontSize: width * 0.04,  
+    fontSize: width * 0.04,
     textAlign: "center",
   },
+  contentWrapper: {
+    flex: 1,
+    position: "relative",
+  },
   contentContainer: {
-    paddingHorizontal: width * 0.05, 
+    paddingHorizontal: width * 0.05,
   },
   contentText: {
-    fontSize: width * 0.04,   
+    fontSize: width * 0.04,
     lineHeight: width * 0.06,
+  },
+  copyButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 1,
+    backgroundColor: "#D3D3D3",
+    opacity:0.7,
+    borderRadius: 20,
+    padding: 8,
+  },
+  notificationContainer: {
+    position: "absolute",
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  notificationText: {
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    color: "#fff",
+    padding: 10,
+    borderRadius: 5,
+    fontSize: width * 0.035,
   },
 });
