@@ -5,15 +5,16 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  AccessibilityInfo,
+  ScrollView,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
-import * as FileSystem from 'expo-file-system'; 
+import * as FileSystem from "expo-file-system";
 import { FlashcardsScreen } from "./ViewFlashcards";
-import { SummaryScreen } from "./ViewSummary";
 
 type StudyMaterialScreenRouteProp = RouteProp<
-  { StudyMaterial: { audioFile: string } }, 
+  { StudyMaterial: { audioFile: string } },
   "StudyMaterial"
 >;
 
@@ -36,10 +37,14 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
   const { audioFile } = route.params;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(null);
+  const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(
+    null
+  );
   const [flashcardsData, setFlashcardsData] = useState<Flashcard[]>([]);
-  const [transcriptionText, setTranscriptionText] = useState<string | null>(null);
-  const [summaryText, setSummaryText] = useState<string | null> (null);
+  const [transcriptionText, setTranscriptionText] = useState<string | null>(
+    null
+  );
+  const [summaryText, setSummaryText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,24 +55,24 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
         const fileInfo = await FileSystem.getInfoAsync(audioFile);
 
         if (!fileInfo.exists) {
-          throw new Error('File does not exist');
+          throw new Error("File does not exist");
         }
 
         const formData = new FormData();
-        
+
         const audioBlob = {
           uri: audioFile,
-          type: 'audio/x-caf', 
-          name: 'recording.caf',
+          type: "audio/x-caf",
+          name: "recording.caf",
         };
 
-        formData.append('audio_file', audioBlob);
+        formData.append("audio_file", audioBlob);
 
         const response = await fetch("http://10.0.0.124:5001/transcribe", {
           method: "POST",
           body: formData,
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         });
 
@@ -79,7 +84,6 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         const transcription = responseData.transcription;
         const summary = responseData.lecture_notes;
-        console.log(summary);
         setTranscriptionText(transcription);
         setSummaryText(summary);
       } catch (err) {
@@ -92,11 +96,22 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     fetchData();
   }, [audioFile]);
 
+  const announceScreenChange = (screenName: string) => {
+    AccessibilityInfo.announceForAccessibility(`${screenName} screen loaded`);
+  };
+
+  useEffect(() => {
+    const screenNames = ["Summary", "Flashcards", "Transcriptions"];
+    announceScreenChange(screenNames[selectedIndex]);
+  }, [selectedIndex]);
 
   const renderContent = () => {
     if (loading) {
       return (
-        <View style={styles.loadingContainer}>
+        <View
+          style={styles.loadingContainer}
+          accessibilityLabel="Loading content"
+        >
           <ActivityIndicator size="large" color="#0000ff" />
           <Text>Loading...</Text>
         </View>
@@ -106,7 +121,9 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     if (error) {
       return (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText} accessibilityLabel={`Error: ${error}`}>
+            {error}
+          </Text>
         </View>
       );
     }
@@ -114,21 +131,33 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     switch (selectedIndex) {
       case 0:
         return summaryText ? (
-          <View style={styles.transcriptionContainer}>
-            <Text style={styles.transcriptionText}>{summaryText}</Text>
-          </View>
+          <ScrollView
+            style={styles.contentContainer}
+            accessibilityLabel="Summary content"
+            accessible={true}
+          >
+            <Text style={styles.contentText}>{summaryText}</Text>
+          </ScrollView>
         ) : (
-          <Text>No summary available</Text>
+          <Text accessibilityLabel="No summary available">
+            No summary available
+          </Text>
         );
       case 1:
         return <FlashcardsScreen flashcardsData={flashcardsData} />;
       case 2:
         return transcriptionText ? (
-          <View style={styles.transcriptionContainer}>
-            <Text style={styles.transcriptionText}>{transcriptionText}</Text>
-          </View>
+          <ScrollView
+            style={styles.contentContainer}
+            accessibilityLabel="Transcription content"
+            accessible={true}
+          >
+            <Text style={styles.contentText}>{transcriptionText}</Text>
+          </ScrollView>
         ) : (
-          <Text>No transcription available</Text>
+          <Text accessibilityLabel="No transcription available">
+            No transcription available
+          </Text>
         );
       default:
         return null;
@@ -145,6 +174,9 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
             setSelectedIndex(event.nativeEvent.selectedSegmentIndex);
           }}
           style={styles.segmentedControl}
+          accessible={true}
+          accessibilityLabel="Content selection"
+          accessibilityHint="Double tap to switch between Summary, Flashcards, and Transcriptions"
         />
         {renderContent()}
       </View>
@@ -180,10 +212,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-  transcriptionContainer: {
+  contentContainer: {
     padding: 20,
   },
-  transcriptionText: {
+  contentText: {
     fontSize: 16,
     lineHeight: 24,
   },

@@ -14,6 +14,8 @@ import {
   Animated,
   SafeAreaView,
   Share,
+  AccessibilityInfo,
+  AccessibilityRole,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
@@ -100,6 +102,7 @@ export const RecordVoiceScreen: React.FC = () => {
       setRecording(newRecording);
       setIsRecording(true);
       await newRecording.startAsync();
+      AccessibilityInfo.announceForAccessibility("Recording started");
     }
   };
 
@@ -137,6 +140,7 @@ export const RecordVoiceScreen: React.FC = () => {
 
     setRecording(null);
     animateButtons();
+    AccessibilityInfo.announceForAccessibility("Recording stopped");
   };
 
   const animateButtons = () => {
@@ -180,11 +184,18 @@ export const RecordVoiceScreen: React.FC = () => {
           { duration: formatDuration(duration), file: uri },
         ]);
         animateButtons();
+        AccessibilityInfo.announceForAccessibility(
+          "Audio file imported successfully"
+        );
       } catch (error) {
         console.error("Error loading audio:", error);
+        AccessibilityInfo.announceForAccessibility(
+          "Error importing audio file"
+        );
       }
     }
   };
+
   const goToPreviousTranscriptions = useCallback(() => {
     navigation.navigate("Previous Transcriptions", { recordings });
   }, [navigation, recordings]);
@@ -197,15 +208,18 @@ export const RecordVoiceScreen: React.FC = () => {
         if (status.didJustFinish) {
           setIsPlaying(false);
           clearInterval(playbackInterval.current!);
+          AccessibilityInfo.announceForAccessibility("Playback finished");
         }
       }
     }
   }, [sound]);
+
   const playPauseAudio = async () => {
     if (sound) {
       if (isPlaying) {
         await sound.pauseAsync();
         clearInterval(playbackInterval.current!);
+        AccessibilityInfo.announceForAccessibility("Audio paused");
       } else {
         const status = await sound.getStatusAsync();
         if (!status.isLoaded) {
@@ -215,6 +229,7 @@ export const RecordVoiceScreen: React.FC = () => {
         }
         await sound.playAsync();
         playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
+        AccessibilityInfo.announceForAccessibility("Audio playing");
       }
       setIsPlaying(!isPlaying);
     }
@@ -227,6 +242,7 @@ export const RecordVoiceScreen: React.FC = () => {
       setIsPlaying(true);
       setPosition(0);
       playbackInterval.current = setInterval(updatePlaybackStatus, 1000);
+      AccessibilityInfo.announceForAccessibility("Audio restarted");
     }
   };
 
@@ -234,6 +250,7 @@ export const RecordVoiceScreen: React.FC = () => {
     const lastRecording = recordings[recordings.length - 1];
     if (lastRecording?.file) {
       await Share.share({ url: lastRecording.file });
+      AccessibilityInfo.announceForAccessibility("Audio shared");
     }
   };
 
@@ -241,6 +258,9 @@ export const RecordVoiceScreen: React.FC = () => {
     if (sound) {
       await sound.setPositionAsync(value * 1000);
       setPosition(value);
+      AccessibilityInfo.announceForAccessibility(
+        `Moved to ${formatDuration(value * 1000)}`
+      );
     }
   };
 
@@ -251,19 +271,18 @@ export const RecordVoiceScreen: React.FC = () => {
     }
   }, [recordings, navigation]);
 
-  const viewTranscription = useCallback(() => {
-    const lastRecording = recordings[recordings.length - 1];
-    if (lastRecording) {
-      navigation.navigate("Transcription", { audioFile: lastRecording });
-    }
-  }, [recordings, navigation]);
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={styles.safeArea}
+      accessible={true}
+    >
       <View style={styles.container}>
         <TouchableOpacity
           style={styles.previousTranscriptionsButton}
           onPress={goToPreviousTranscriptions}
+          accessible={true}
+          accessibilityLabel="View Previous Transcriptions"
+          accessibilityRole="button"
         >
           <Icon name="history" size={24} color="#fff" />
           <Text style={styles.previousTranscriptionsText}>
@@ -290,6 +309,16 @@ export const RecordVoiceScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.microphoneButtonTouchable}
               onPress={isRecording ? stopRecording : startRecording}
+              accessible={true}
+              accessibilityLabel={
+                isRecording ? "Stop Recording" : "Start Recording"
+              }
+              accessibilityRole="button"
+              accessibilityHint={
+                isRecording
+                  ? "Double tap to stop recording"
+                  : "Double tap to start recording"
+              }
             >
               <Icon
                 name={isRecording ? "stop" : "microphone"}
@@ -298,18 +327,25 @@ export const RecordVoiceScreen: React.FC = () => {
               />
             </TouchableOpacity>
           </Animated.View>
-          <Text style={styles.recordingStatus}>
+          <Text style={styles.recordingStatus} accessibilityRole="text">
             {isRecording ? "Recording..." : "Tap to start recording"}
           </Text>
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.button} onPress={handleImport}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleImport}
+              accessible={true}
+              accessibilityLabel="Import Audio"
+              accessibilityRole="button"
+              accessibilityHint="Double tap to import an audio file"
+            >
               <Icon name="file-upload-outline" size={30} color="#000" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {recordings.length > 0 && (
+        {recordings.length > 0 && !isRecording && (
           <Animated.View
             style={[
               styles.actionButtonsContainer,
@@ -330,6 +366,14 @@ export const RecordVoiceScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.audioControlButton}
                 onPress={playPauseAudio}
+                accessible={true}
+                accessibilityLabel={isPlaying ? "Pause" : "Play"}
+                accessibilityRole="button"
+                accessibilityHint={
+                  isPlaying
+                    ? "Double tap to pause audio"
+                    : "Double tap to play audio"
+                }
               >
                 <Icon
                   name={isPlaying ? "pause" : "play"}
@@ -340,12 +384,20 @@ export const RecordVoiceScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.audioControlButton}
                 onPress={restartAudio}
+                accessible={true}
+                accessibilityLabel="Restart"
+                accessibilityRole="button"
+                accessibilityHint="Double tap to restart audio"
               >
                 <Icon name="restart" size={30} color="#000" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.audioControlButton}
                 onPress={shareAudio}
+                accessible={true}
+                accessibilityLabel="Share"
+                accessibilityRole="button"
+                accessibilityHint="Double tap to share audio"
               >
                 <Icon name="share-variant" size={30} color="#000" />
               </TouchableOpacity>
@@ -360,12 +412,18 @@ export const RecordVoiceScreen: React.FC = () => {
                 minimumTrackTintColor="#1a1a1a"
                 maximumTrackTintColor="#000000"
                 thumbTintColor="#1a1a1a"
+                accessible={true}
+                accessibilityLabel={`Audio progress: ${formatDuration(
+                  position * 1000
+                )} of ${formatDuration(duration * 1000)}`}
+                accessibilityRole="adjustable"
+                accessibilityHint="Slide to change audio position"
               />
               <View style={styles.timeContainer}>
-                <Text style={styles.timeText}>
+                <Text style={styles.timeText} accessibilityRole="text">
                   {formatDuration(position * 1000)}
                 </Text>
-                <Text style={styles.timeText}>
+                <Text style={styles.timeText} accessibilityRole="text">
                   {formatDuration(duration * 1000)}
                 </Text>
               </View>
@@ -373,10 +431,13 @@ export const RecordVoiceScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.actionButton}
               onPress={goToStudyMaterials}
+              accessible={true}
+              accessibilityLabel="View Summary"
+              accessibilityRole="button"
+              accessibilityHint="Double tap to view study materials"
             >
               <Text style={styles.actionButtonText}>View Summary</Text>
             </TouchableOpacity>
-            
           </Animated.View>
         )}
       </View>
