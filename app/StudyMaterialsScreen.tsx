@@ -45,7 +45,6 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
       setLoading(true);
 
       try {
-        // Read the audio file using expo-file-system
         const fileInfo = await FileSystem.getInfoAsync(audioFile);
 
         if (!fileInfo.exists) {
@@ -54,22 +53,19 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         const formData = new FormData();
         
-        // Create a Blob-like object for the file
         const audioBlob = {
           uri: audioFile,
-          type: 'audio/x-caf', // Ensure to specify the correct MIME type
+          type: 'audio/x-caf', 
           name: 'recording.caf',
         };
 
         formData.append('audio_file', audioBlob);
 
-        console.log("Audio File URI:", audioFile);
-
         const response = await fetch("http://127.0.0.1:5000/transcribe", {
           method: "POST",
           body: formData,
           headers: {
-            'Content-Type': 'multipart/form-data', // Correct content type for file upload
+            'Content-Type': 'multipart/form-data',
           },
         });
 
@@ -78,12 +74,13 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
         }
 
         const responseData = await response.json();
-        console.log("Backend Response:", responseData);
-        const parsedData = parseSummaryData(responseData.lecture_notes);
+
+        const transcriptionText = responseData.transcription.text;
+
+        const parsedData = parseSummaryData(transcriptionText);
         setSummaryData(parsedData);
       } catch (err) {
         setError("Failed to fetch data");
-        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
@@ -92,11 +89,11 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     fetchData();
   }, [audioFile]);
 
-  const parseSummaryData = (data: any): ParsedSummaryData => {
+  const parseSummaryData = (data: string): ParsedSummaryData => {
     return {
-      title: data?.title || "Summary",
-      mainPoints: data?.main_points || [],
-      additionalInfo: data?.additional_info || "",
+      title: "Summary",
+      mainPoints: [data],
+      additionalInfo: "",
     };
   };
 

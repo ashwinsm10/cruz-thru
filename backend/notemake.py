@@ -31,5 +31,9 @@ def generate_notes(transcript_text):
     """
 
     model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    if isinstance(transcript_text, dict):
+        transcript_text = str(transcript_text)
+
     response = model.generate_content(prompt + transcript_text)
     return response.text
