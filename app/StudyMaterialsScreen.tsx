@@ -8,11 +8,12 @@ import {
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import * as FileSystem from 'expo-file-system'; 
 import { FlashcardsScreen } from "./ViewFlashcards";
 import { SummaryScreen } from "./ViewSummary";
 
 type StudyMaterialScreenRouteProp = RouteProp<
-  { StudyMaterial: { audioFile: File } }, 
+  { StudyMaterial: { audioFile: string } }, 
   "StudyMaterial"
 >;
 
@@ -32,28 +33,44 @@ interface Flashcard {
 }
 
 export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
-  const { audioFile } = route.params; 
+  const { audioFile } = route.params;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(
-    null
-  );
+  const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(null);
   const [flashcardsData, setFlashcardsData] = useState<Flashcard[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const formData = new FormData();
-      formData.append("audio_file", audioFile);
-
-      console.log("Audio File:", audioFile);
-      console.log("FormData:", formData.get("audio_file"));
 
       try {
-        const response = await fetch("http://10.0.0.124:5000/transcribe", {
+        // Read the audio file using expo-file-system
+        const fileInfo = await FileSystem.getInfoAsync(audioFile);
+
+        if (!fileInfo.exists) {
+          throw new Error('File does not exist');
+        }
+
+        const formData = new FormData();
+        
+        // Create a Blob-like object for the file
+        const audioBlob = {
+          uri: audioFile,
+          type: 'audio/x-caf', // Ensure to specify the correct MIME type
+          name: 'recording.caf',
+        };
+
+        formData.append('audio_file', audioBlob);
+
+        console.log("Audio File URI:", audioFile);
+
+        const response = await fetch("http://127.0.0.1:5000/transcribe", {
           method: "POST",
           body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data', // Correct content type for file upload
+          },
         });
 
         if (!response.ok) {
@@ -62,7 +79,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         const responseData = await response.json();
         console.log("Backend Response:", responseData);
-        const parsedData = parseSummaryData(responseData.transcription);
+        const parsedData = parseSummaryData(responseData.lecture_notes);
         setSummaryData(parsedData);
       } catch (err) {
         setError("Failed to fetch data");
