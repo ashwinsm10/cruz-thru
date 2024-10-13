@@ -4,15 +4,12 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import PreviousTranscriptionsScreen from "./PreviousTranscriptionsScreen";
 import { RecordVoiceScreen } from "./Transcribe";
-import { SummaryScreen } from "./ViewSummary";
 import { StudyMaterialScreen } from "./StudyMaterialsScreen";
-import { ViewTranscription } from "./ViewTranscription";
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer independent={true}>
         <Stack.Navigator initialRouteName="LectureNotes">
           <Stack.Screen
@@ -40,6 +37,5 @@ export default function App() {
          
         </Stack.Navigator>
       </NavigationContainer>
-    </GestureHandlerRootView>
   );
 }

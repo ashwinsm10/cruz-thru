@@ -7,11 +7,14 @@ import {
   ActivityIndicator,
   AccessibilityInfo,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import * as FileSystem from "expo-file-system";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashcardsScreen } from "./ViewFlashcards";
+const { width, height } = Dimensions.get("window");
 
 type StudyMaterialScreenRouteProp = RouteProp<
   { StudyMaterial: { audioFile: string } },
@@ -22,12 +25,6 @@ type Props = {
   route: StudyMaterialScreenRouteProp;
 };
 
-interface ParsedSummaryData {
-  title: string;
-  mainPoints: string[];
-  additionalInfo?: string;
-}
-
 interface Flashcard {
   question: string;
   answer: string;
@@ -37,9 +34,6 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
   const { audioFile } = route.params;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(
-    null
-  );
   const [flashcardsData, setFlashcardsData] = useState<Flashcard[]>([]);
   const [transcriptionText, setTranscriptionText] = useState<string | null>(
     null
@@ -52,6 +46,17 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
       setLoading(true);
 
       try {
+        const storedData = await AsyncStorage.getItem(audioFile);
+
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          setTranscriptionText(parsedData.transcription);
+          setSummaryText(parsedData.summary);
+          setFlashcardsData(parsedData.flashcards);
+          setLoading(false);
+          return;
+        }
+
         const fileInfo = await FileSystem.getInfoAsync(audioFile);
 
         if (!fileInfo.exists) {
@@ -84,8 +89,20 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         const transcription = responseData.transcription;
         const summary = responseData.lecture_notes;
+        const flashcards = responseData.flashcards;
+
+        await AsyncStorage.setItem(
+          audioFile,
+          JSON.stringify({
+            transcription,
+            summary,
+            flashcards,
+          })
+        );
+
         setTranscriptionText(transcription);
         setSummaryText(summary);
+        setFlashcardsData(flashcards);
       } catch (err) {
         setError("Failed to fetch data");
       } finally {
@@ -191,10 +208,11 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: width * 0.05, 
+    paddingVertical: height * 0.02, 
   },
   segmentedControl: {
-    marginBottom: 20,
+    marginBottom: height * 0.02,  
   },
   loadingContainer: {
     flex: 1,
@@ -205,18 +223,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: width * 0.05,  
   },
   errorText: {
     color: "red",
-    fontSize: 16,
+    fontSize: width * 0.04,  
     textAlign: "center",
   },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: width * 0.05, 
   },
   contentText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: width * 0.04,   
+    lineHeight: width * 0.06,
   },
 });

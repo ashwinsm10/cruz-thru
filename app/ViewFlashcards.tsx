@@ -40,7 +40,7 @@ export const FlashcardsScreen: React.FC<Props> = ({ flashcardsData }) => {
     <View style={styles.container}>
       <TouchableOpacity style={styles.card} onPress={toggleAnswer}>
         <Text style={styles.cardText}>
-          {showAnswer ? currentCard.answer : currentCard.question}
+          {showAnswer ? currentCard.answer : currentCard.vocab}
         </Text>
       </TouchableOpacity>
       <Text style={styles.instructionText}>Tap the card to flip</Text>

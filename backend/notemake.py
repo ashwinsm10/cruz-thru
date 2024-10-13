@@ -32,7 +32,7 @@ def generate_flashcards(notes_text):
     prompt = """
         Title: Flashcards from Lecture Notes
 
-        Create flashcards in the format: vocabulary - definition. Don't add any extra text.
+        Create flashcards in the format: vocabulary ^ definition. Don't add any extra text.
         The source given to you are lecture notes. Make sure to include any key terms, important dates, and equations if present in the lecture notes.
 
     """
@@ -44,7 +44,12 @@ def generate_flashcards(notes_text):
     
     data = []
     for line in response.text.splitlines():
-        vocab, answer = line.split(' - ')
+        try:
+            vocab, answer = line.split(' ^ ')
+        except:
+            data.append({'vocab': "", 'answer': ""})
+            return data
         data.append({'vocab': vocab, 'answer': answer})
+
 
     return data

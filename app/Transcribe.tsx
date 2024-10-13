@@ -23,7 +23,7 @@ import { Audio } from "expo-av";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import { Recording } from "expo-av/build/Audio";
-
+import { AVPlaybackStatus } from 'expo-av';
 const { width, height } = Dimensions.get("window");
 
 interface RecordingData {
@@ -51,9 +51,11 @@ export const RecordVoiceScreen: React.FC = () => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
+  const [recordingDuration, setRecordingDuration] = useState(0);
 
   const animationValue = useRef(new Animated.Value(0)).current;
   const playbackInterval = useRef<NodeJS.Timeout | null>(null);
+  const recordingInterval = useRef<NodeJS.Timeout | null>(null);
 
   const navigation = useNavigation();
 
@@ -62,6 +64,7 @@ export const RecordVoiceScreen: React.FC = () => {
       if (recording) stopRecording();
       if (sound) sound.unloadAsync();
       if (playbackInterval.current) clearInterval(playbackInterval.current);
+      if (recordingInterval.current) clearInterval(recordingInterval.current);
     };
   }, [recording, sound]);
 
@@ -101,47 +104,59 @@ export const RecordVoiceScreen: React.FC = () => {
 
       setRecording(newRecording);
       setIsRecording(true);
+      setRecordingDuration(0);
       await newRecording.startAsync();
+      recordingInterval.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
       AccessibilityInfo.announceForAccessibility("Recording started");
     }
   };
 
   const stopRecording = async () => {
     setIsRecording(false);
-
+    if (recordingInterval.current) clearInterval(recordingInterval.current);
+  
     if (recording) {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-
-      if (sound) {
-        try {
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded) {
-            await sound.unloadAsync();
-          }
-        } catch (error) {
-          console.error("Error unloading sound:", error);
+      try {
+        // Check if the recording is still ongoing before stopping
+        const recordingStatus = await recording.getStatusAsync();
+        if (recordingStatus.isRecording) {
+          await recording.stopAndUnloadAsync();
         }
-        setSound(null);
-      }
-
-      const { sound: newSound, status } =
-        await recording.createNewLoadedSoundAsync();
-      if (uri && status.durationMillis) {
-        const newRecordingData = {
-          duration: formatDuration(status.durationMillis),
-          file: uri,
-        };
-        setRecordings((prev) => [...prev, newRecordingData]);
-        setSound(newSound);
-        setDuration(status.durationMillis / 1000);
+  
+        const uri = recording.getURI();
+  
+        if (sound) {
+          // Check if the sound is loaded before trying to unload
+          const soundStatus = await sound.getStatusAsync();
+          if (soundStatus.isLoaded) {
+            await sound.unloadAsync();  // Only unload if sound is still loaded
+          }
+        }
+  
+        const { sound: newSound, status } = await recording.createNewLoadedSoundAsync();
+        if (uri && status.isLoaded && status.durationMillis) {
+          const newRecordingData =
+           {
+            duration: formatDuration(status.durationMillis),
+            file: uri,
+          };
+          setRecordings((prev) => [...prev, newRecordingData]);
+          setSound(newSound);
+          setDuration(status.durationMillis / 1000);
+        }
+      } catch (error) {
+        console.error("Error stopping or unloading recording:", error);
       }
     }
-
+  
     setRecording(null);
     animateButtons();
     AccessibilityInfo.announceForAccessibility("Recording stopped");
   };
+  
+  
 
   const animateButtons = () => {
     Animated.spring(animationValue, {
@@ -178,7 +193,7 @@ export const RecordVoiceScreen: React.FC = () => {
         });
 
         setSound(newSound);
-        setDuration(status.durationMillis / 1000);
+        setDuration( status.durationMillis / 1000);
         setRecordings((prev) => [
           ...prev,
           { duration: formatDuration(duration), file: uri },
@@ -275,6 +290,7 @@ export const RecordVoiceScreen: React.FC = () => {
     <SafeAreaView
       style={styles.safeArea}
       accessible={true}
+      accessibilityLabel="Record Voice Screen"
     >
       <View style={styles.container}>
         <TouchableOpacity
@@ -327,9 +343,16 @@ export const RecordVoiceScreen: React.FC = () => {
               />
             </TouchableOpacity>
           </Animated.View>
-          <Text style={styles.recordingStatus} accessibilityRole="text">
-            {isRecording ? "Recording..." : "Tap to start recording"}
-          </Text>
+          <View style={styles.recordingStatusContainer}>
+            <Text style={styles.recordingStatus} accessibilityRole="text">
+              {isRecording ? "Recording" : "Tap to start recording"}
+            </Text>
+            {isRecording && (
+              <Text style={styles.recordingDuration} accessibilityRole="text">
+                {` • ${formatDuration(recordingDuration * 1000)}`}
+              </Text>
+            )}
+          </View>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
@@ -495,10 +518,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  recordingStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: height * 0.03,
+  },
   recordingStatus: {
     fontSize: 18,
     color: "#333",
-    marginBottom: height * 0.03,
   },
   buttonRow: {
     flexDirection: "row",
@@ -536,6 +564,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: height * 0.02,
+  },
+  recordingDuration: {
+    fontSize: 18,
+    color: "#1a1a1a",
+    fontWeight: "bold",
   },
   audioControlButton: {
     backgroundColor: "#fff",
