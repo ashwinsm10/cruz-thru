@@ -1,10 +1,9 @@
 from flask import Flask, request, jsonify
 from transcribe import transcribe_audio
-from notemake import generate_notes
+from notemake import generate_notes, generate_flashcards
 
 
 app = Flask(__name__)
-print(app)
 
 @app.route('/transcribe', methods=['POST'])
 def backend():
@@ -16,13 +15,14 @@ def backend():
     transcription = transcribe_audio(audio_file)
 
     lecture_notes = generate_notes(transcription)
-    print(type(transcription))
-    print(type(lecture_notes))
+
+    flashcards = generate_flashcards(lecture_notes)
 
     return jsonify({
         "transcription": transcription,
-        "lecture_notes": lecture_notes
+        "lecture_notes": lecture_notes,
+        "flashcards": flashcards
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True)
