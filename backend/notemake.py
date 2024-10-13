@@ -2,7 +2,7 @@ import streamlit as st
 
 import google.generativeai as genai
 
-genai.configure(api_key="API_KEY")
+genai.configure(api_key="AIzaSyDgf0MUkoQDvVWc3VNFvq104JCmBtdaOys")
 
 
 def fetch_transcript():
@@ -31,9 +31,6 @@ def generate_notes(transcript_text):
     """
 
     model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    if isinstance(transcript_text, dict):
-        transcript_text = str(transcript_text)
 
     response = model.generate_content(prompt + transcript_text)
     return response.text

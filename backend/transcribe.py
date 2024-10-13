@@ -22,4 +22,4 @@ def transcribe_audio(audio_file):
     # Step 5: Optionally clean up the temporary file
     os.remove(audio_file_path)
 
-    return result
+    return result["text"]

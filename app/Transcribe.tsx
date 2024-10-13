@@ -376,12 +376,7 @@ export const RecordVoiceScreen: React.FC = () => {
             >
               <Text style={styles.actionButtonText}>View Summary</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={viewTranscription}
-            >
-              <Text style={styles.actionButtonText}>View Transcription</Text>
-            </TouchableOpacity>
+            
           </Animated.View>
         )}
       </View>

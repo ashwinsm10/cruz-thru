@@ -38,6 +38,8 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
   const [loading, setLoading] = useState(true);
   const [summaryData, setSummaryData] = useState<ParsedSummaryData | null>(null);
   const [flashcardsData, setFlashcardsData] = useState<Flashcard[]>([]);
+  const [transcriptionText, setTranscriptionText] = useState<string | null>(null);
+  const [summaryText, setSummaryText] = useState<string | null> (null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         formData.append('audio_file', audioBlob);
 
-        const response = await fetch("http://127.0.0.1:5000/transcribe", {
+        const response = await fetch("http://10.0.0.124:5001/transcribe", {
           method: "POST",
           body: formData,
           headers: {
@@ -75,10 +77,11 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
         const responseData = await response.json();
 
-        const transcriptionText = responseData.transcription.text;
-
-        const parsedData = parseSummaryData(transcriptionText);
-        setSummaryData(parsedData);
+        const transcription = responseData.transcription;
+        const summary = responseData.lecture_notes;
+        console.log(summary);
+        setTranscriptionText(transcription);
+        setSummaryText(summary);
       } catch (err) {
         setError("Failed to fetch data");
       } finally {
@@ -89,13 +92,6 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     fetchData();
   }, [audioFile]);
 
-  const parseSummaryData = (data: string): ParsedSummaryData => {
-    return {
-      title: "Summary",
-      mainPoints: [data],
-      additionalInfo: "",
-    };
-  };
 
   const renderContent = () => {
     if (loading) {
@@ -117,13 +113,23 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
 
     switch (selectedIndex) {
       case 0:
-        return summaryData ? (
-          <SummaryScreen summaryData={summaryData} />
+        return summaryText ? (
+          <View style={styles.transcriptionContainer}>
+            <Text style={styles.transcriptionText}>{summaryText}</Text>
+          </View>
         ) : (
           <Text>No summary available</Text>
         );
       case 1:
         return <FlashcardsScreen flashcardsData={flashcardsData} />;
+      case 2:
+        return transcriptionText ? (
+          <View style={styles.transcriptionContainer}>
+            <Text style={styles.transcriptionText}>{transcriptionText}</Text>
+          </View>
+        ) : (
+          <Text>No transcription available</Text>
+        );
       default:
         return null;
     }
@@ -133,7 +139,7 @@ export const StudyMaterialScreen: React.FC<Props> = ({ route }) => {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <SegmentedControl
-          values={["Summary", "Flashcards"]}
+          values={["Summary", "Flashcards", "Transcriptions"]}
           selectedIndex={selectedIndex}
           onChange={(event) => {
             setSelectedIndex(event.nativeEvent.selectedSegmentIndex);
@@ -173,5 +179,12 @@ const styles = StyleSheet.create({
     color: "red",
     fontSize: 16,
     textAlign: "center",
+  },
+  transcriptionContainer: {
+    padding: 20,
+  },
+  transcriptionText: {
+    fontSize: 16,
+    lineHeight: 24,
   },
 });

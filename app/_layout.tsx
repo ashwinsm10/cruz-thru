@@ -37,15 +37,7 @@ export default function App() {
               headerTintColor: "#ffffff",
             }}
           />
-          <Stack.Screen
-            name="Transcription"
-            component={ViewTranscription}
-            options={{
-              headerTitle: "Summary",
-              headerStyle: { backgroundColor: "#1a1a1a" },
-              headerTintColor: "#ffffff",
-            }}
-          />
+         
         </Stack.Navigator>
       </NavigationContainer>
     </GestureHandlerRootView>

@@ -16,6 +16,8 @@ def backend():
     transcription = transcribe_audio(audio_file)
 
     lecture_notes = generate_notes(transcription)
+    print(type(transcription))
+    print(type(lecture_notes))
 
     return jsonify({
         "transcription": transcription,
@@ -23,4 +25,4 @@ def backend():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5001)
