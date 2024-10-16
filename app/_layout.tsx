@@ -1,7 +1,7 @@
 import * as React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import PreviousTranscriptionsScreen from "./PreviousTranscriptionsScreen";
 import { RecordVoiceScreen } from "./Transcribe";
 import { StudyMaterialScreen } from "./StudyMaterialsScreen";
@@ -10,6 +10,7 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer independent={true}>
         <Stack.Navigator initialRouteName="LectureNotes">
           <Stack.Screen
@@ -34,8 +35,8 @@ export default function App() {
               headerTintColor: "#ffffff",
             }}
           />
-         
         </Stack.Navigator>
       </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }

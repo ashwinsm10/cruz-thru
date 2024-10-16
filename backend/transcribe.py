@@ -1,25 +1,47 @@
 import os
 import librosa
-import whisper
+import io
+import soundfile as sf
+import time  
+from concurrent.futures import ThreadPoolExecutor
+from faster_whisper import WhisperModel
+
+def transcribe_chunk_in_memory(audio_chunk, sr, model):
+    with io.BytesIO() as f:
+        sf.write(f, audio_chunk, sr, format='WAV')
+        f.seek(0)
+        segments, _ = model.transcribe(f, beam_size=1)
+        return " ".join([segment.text for segment in segments])
 
 def transcribe_audio(audio_file):
-    # Step 1: Save the uploaded file to a temporary path
-    audio_file_path = "/tmp/temp_audio.wav"  # Use a temporary file path
+    audio_file_path = "/tmp/temp_audio.wav"
     audio_file.save(audio_file_path)
 
-    # Step 2: Load the saved audio file using librosa
-    audio, sr = librosa.load(audio_file_path, sr=16000)
+    start_time = time.time()
 
-    # Check if audio was loaded correctly
-    print(f"Audio loaded: {audio.shape}, Sample rate: {sr}")
+    audio, sr = librosa.load(audio_file_path, sr=None)
+    
+    chunk_duration = 60  
+    chunk_length = int(chunk_duration * sr)
+    audio_chunks = [audio[i:i + chunk_length] for i in range(0, len(audio), chunk_length)]
 
-    # Step 3: Initialize the Whisper model
-    model = whisper.load_model("base")
+    model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
-    # Step 4: Pass the file path to Whisper's transcribe method
-    result = model.transcribe(audio_file_path)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        transcriptions = list(executor.map(lambda chunk: transcribe_chunk_in_memory(chunk, sr, model), audio_chunks))
 
-    # Step 5: Optionally clean up the temporary file
+    transcription = " ".join(transcriptions)
+
     os.remove(audio_file_path)
 
-    return result["text"]
+    total_time = time.time() - start_time
+
+    total_audio_duration = len(audio) / sr / 60  
+
+    avg_time_per_minute = total_time / total_audio_duration
+
+    print(f"Total transcription time: {total_time:.2f} seconds")
+    print(f"Total audio duration: {total_audio_duration:.2f} minutes")
+    print(f"Average time to transcribe 1 minute of audio: {avg_time_per_minute:.2f} seconds")
+
+    return transcription

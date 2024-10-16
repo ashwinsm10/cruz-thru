@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 interface Props {
   flashcardsData: {
-    question: string;
+    vocab: string;
     answer: string;
   }[];
 }
@@ -18,7 +18,10 @@ export const FlashcardsScreen: React.FC<Props> = ({ flashcardsData }) => {
   };
 
   const handlePrevCard = () => {
-    setCurrentCardIndex((prevIndex) => (prevIndex - 1 + flashcardsData.length) % flashcardsData.length);
+    setCurrentCardIndex(
+      (prevIndex) =>
+        (prevIndex - 1 + flashcardsData.length) % flashcardsData.length
+    );
     setShowAnswer(false);
   };
 
@@ -26,7 +29,7 @@ export const FlashcardsScreen: React.FC<Props> = ({ flashcardsData }) => {
     setShowAnswer(!showAnswer);
   };
 
-  if (flashcardsData.length === 0) {
+  if (flashcardsData.length === 0 || flashcardsData[0].vocab == "") {
     return (
       <View style={styles.emptyContainer}>
         <Text>No flashcards available.</Text>
@@ -48,7 +51,9 @@ export const FlashcardsScreen: React.FC<Props> = ({ flashcardsData }) => {
         <TouchableOpacity style={styles.navButton} onPress={handlePrevCard}>
           <Text style={styles.navButtonText}>Previous</Text>
         </TouchableOpacity>
-        <Text style={styles.cardCount}>{`${currentCardIndex + 1}/${flashcardsData.length}`}</Text>
+        <Text style={styles.cardCount}>{`${currentCardIndex + 1}/${
+          flashcardsData.length
+        }`}</Text>
         <TouchableOpacity style={styles.navButton} onPress={handleNextCard}>
           <Text style={styles.navButtonText}>Next</Text>
         </TouchableOpacity>
@@ -60,22 +65,22 @@ export const FlashcardsScreen: React.FC<Props> = ({ flashcardsData }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   card: {
-    width: '100%',
+    width: "100%",
     height: 200,
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -85,27 +90,27 @@ const styles = StyleSheet.create({
   },
   cardText: {
     fontSize: 18,
-    textAlign: 'center',
+    textAlign: "center",
   },
   instructionText: {
     marginTop: 10,
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   navigationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
     marginTop: 20,
   },
   navButton: {
     padding: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     borderRadius: 5,
   },
   navButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
   },
   cardCount: {

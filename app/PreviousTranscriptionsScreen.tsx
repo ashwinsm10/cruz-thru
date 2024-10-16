@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
-  Animated,
   StyleSheet,
   Alert,
   Dimensions,
@@ -27,7 +26,7 @@ const { width } = Dimensions.get("window");
 
 interface Recording {
   file: string;
-  duration: string;
+  duration: number;
 }
 
 interface RouteParams {
@@ -38,206 +37,140 @@ interface PreviousTranscriptionsScreenProps {
   route: { params: RouteParams };
 }
 
-const PreviousTranscriptionsScreen: React.FC<
-  PreviousTranscriptionsScreenProps
-> = ({ route }) => {
-  const { recordings: initialRecordings } = route.params;
-  const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
-  const [sounds, setSounds] = useState<Array<Audio.Sound | null>>(
-    Array(initialRecordings.length).fill(null)
-  );
-  const [isPlaying, setIsPlaying] = useState<boolean[]>(
-    Array(initialRecordings.length).fill(false)
-  );
-  const [playbackPositions, setPlaybackPositions] = useState<number[]>(
-    Array(initialRecordings.length).fill(0)
-  );
-  const [playbackDurations, setPlaybackDurations] = useState<number[]>(
-    Array(initialRecordings.length).fill(0)
-  );
-  const [hasEnded, setHasEnded] = useState<boolean[]>(
-    Array(initialRecordings.length).fill(false)
+const useAsyncStorage = (key: string) => {
+  const getValue = useCallback(async () => {
+    try {
+      const value = await AsyncStorage.getItem(key);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error(`Error loading ${key}:`, error);
+      return null;
+    }
+  }, [key]);
+
+  const setValue = useCallback(
+    async (data: any) => {
+      try {
+        await AsyncStorage.setItem(key, JSON.stringify(data));
+      } catch (error) {
+        console.error(`Error saving ${key}:`, error);
+      }
+    },
+    [key]
   );
 
+  return { getValue, setValue };
+};
+
+const PreviousTranscriptionsScreen: React.FC<PreviousTranscriptionsScreenProps> = ({ route }) => {
+  const { recordings: initialRecordings } = route.params;
+  const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
+  const [playbackStatus, setPlaybackStatus] = useState(
+    initialRecordings.map(() => ({
+      isPlaying: false,
+      position: 0,
+      duration: 0,
+      hasEnded: false,
+    }))
+  );
+
+  const sounds = useRef<(Audio.Sound | null)[]>(Array(initialRecordings.length).fill(null));
   const navigation = useNavigation<NavigationProp<any>>();
+  const { getValue: getRecordings, setValue: saveRecordings } = useAsyncStorage("recordings");
+  const { getValue: getPlaybackData, setValue: savePlaybackData } = useAsyncStorage("playbackData");
+
+  useEffect(() => {
+    const loadRecordingsAndDurations = async () => {
+      const savedRecordings = await getRecordings();
+      if (savedRecordings) {
+        const durations = await Promise.all(
+          savedRecordings.map(async (rec: Recording) => {
+            if (rec.duration > 0) return rec.duration;
+            const { sound, status } = await Audio.Sound.createAsync({ uri: rec.file });
+            await sound.unloadAsync();
+            return status.durationMillis || 0;
+          })
+        );
+        setRecordings((prev) =>
+          prev.map((rec, i) => ({
+            ...rec,
+            duration: durations[i],
+          }))
+        );
+      }
+    };
+    loadRecordingsAndDurations();
+  }, [getRecordings]);
 
   useEffect(() => {
     const loadPlaybackData = async () => {
-      const savedData = await AsyncStorage.getItem("playbackData");
+      const savedData = await getPlaybackData();
       if (savedData) {
-        const { positions, playingStatuses } = JSON.parse(savedData);
-        setPlaybackPositions(positions || []);
-        setIsPlaying(playingStatuses || []);
+        setPlaybackStatus((prev) =>
+          prev.map((status, i) => ({
+            ...status,
+            position: savedData.positions[i] || 0,
+            isPlaying: savedData.playingStatuses[i] || false,
+          }))
+        );
       }
     };
     loadPlaybackData();
-  }, []);
-
-  useEffect(() => {
-    const savePlaybackData = async () => {
-      await AsyncStorage.setItem(
-        "playbackData",
-        JSON.stringify({
-          positions: playbackPositions,
-          playingStatuses: isPlaying,
-        })
-      );
-    };
-    savePlaybackData();
-  }, [playbackPositions, isPlaying]);
+  }, [getPlaybackData]);
 
   useEffect(() => {
     return () => {
-      sounds.forEach((sound) => {
+      sounds.current.forEach((sound) => {
         sound?.unloadAsync();
       });
     };
-  }, [sounds]);
+  }, []);
+
+  const updatePlaybackStatus = (index: number, status: Audio.SoundStatus) => {
+    if (status.isLoaded) {
+      setPlaybackStatus((prev) =>
+        prev.map((playback, i) =>
+          i === index
+            ? {
+                ...playback,
+                position: status.positionMillis || 0,
+                isPlaying: status.isPlaying,
+                hasEnded: status.didJustFinish,
+              }
+            : playback
+        )
+      );
+    }
+  };
 
   const playRecording = async (file: string, index: number) => {
-    if (sounds[index]) {
-      await sounds[index]?.unloadAsync();
+    if (sounds.current[index]) {
+      await sounds.current[index]?.unloadAsync();
     }
-
     const { sound, status } = await Audio.Sound.createAsync(
       { uri: file },
       { shouldPlay: true },
-      updatePlaybackStatus(index)
+      (status) => updatePlaybackStatus(index, status)
     );
+    sounds.current[index] = sound;
 
-    const updatedSounds = [...sounds];
-    updatedSounds[index] = sound;
-    setSounds(updatedSounds);
-
-    const updatedDurations = [...playbackDurations];
-    updatedDurations[index] = status?.durationMillis ?? 0;
-    setPlaybackDurations(updatedDurations);
-
-    setHasEnded((prev) => {
-      const updated = [...prev];
-      updated[index] = false;
-      return updated;
-    });
-
-    setIsPlaying((prev) => {
-      const updated = [...prev];
-      updated[index] = true;
-      return updated;
-    });
+    if (status.isLoaded && status.durationMillis) {
+      setRecordings((prev) =>
+        prev.map((rec, i) => (i === index ? { ...rec, duration: status.durationMillis! } : rec))
+      );
+    }
   };
 
-  const updatePlaybackStatus =
-    (index: number) => (status: Audio.SoundStatus) => {
-      if (status.isLoaded) {
-        const newPositions = [...playbackPositions];
-        newPositions[index] = status.positionMillis || 0;
-        setPlaybackPositions(newPositions);
-
-        if (status.didJustFinish) {
-          setIsPlaying((prev) => {
-            const updated = [...prev];
-            updated[index] = false;
-            return updated;
-          });
-
-          setHasEnded((prev) => {
-            const updated = [...prev];
-            updated[index] = true;
-            return updated;
-          });
-        }
-      }
-    };
-
   const togglePlayPause = async (index: number) => {
-    if (sounds[index]) {
-      if (isPlaying[index]) {
-        await sounds[index]?.pauseAsync();
-      } else {
-        await sounds[index]?.playAsync();
-      }
-
-      setIsPlaying((prev) => {
-        const updated = [...prev];
-        updated[index] = !updated[index];
-        return updated;
-      });
+    if (sounds.current[index]) {
+      const isPlaying = playbackStatus[index].isPlaying;
+      await (isPlaying ? sounds.current[index]?.pauseAsync() : sounds.current[index]?.playAsync());
+      setPlaybackStatus((prev) =>
+        prev.map((playback, i) => (i === index ? { ...playback, isPlaying: !isPlaying } : playback))
+      );
     } else {
       playRecording(recordings[index].file, index);
     }
-  };
-
-  const restartRecording = async (index: number) => {
-    if (sounds[index]) {
-      await sounds[index]?.setPositionAsync(0);
-      await sounds[index]?.playAsync();
-      setIsPlaying((prev) => {
-        const updated = [...prev];
-        updated[index] = true;
-        return updated;
-      });
-
-      setHasEnded((prev) => {
-        const updated = [...prev];
-        updated[index] = false;
-        return updated;
-      });
-    }
-  };
-
-  const handleSeek = async (value: number, index: number) => {
-    if (sounds[index]) {
-      await sounds[index]?.setPositionAsync(value);
-      const updatedPositions = [...playbackPositions];
-      updatedPositions[index] = value;
-      setPlaybackPositions(updatedPositions);
-    }
-  };
-
-  const formatTime = (milliseconds: number) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
-  const handleDeleteRecording = async (index: number) => {
-    Alert.alert(
-      "Delete Recording",
-      "Are you sure you want to delete this recording?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const updatedRecordings = [...recordings];
-            updatedRecordings.splice(index, 1);
-            setRecordings(updatedRecordings);
-
-            await AsyncStorage.setItem(
-              "recordings",
-              JSON.stringify(updatedRecordings)
-            );
-
-            if (sounds[index]) {
-              await sounds[index]?.unloadAsync();
-              const updatedSounds = [...sounds];
-              updatedSounds.splice(index, 1);
-              setSounds(updatedSounds);
-            }
-
-            setIsPlaying((prev) => prev.filter((_, i) => i !== index));
-            setPlaybackPositions((prev) => prev.filter((_, i) => i !== index));
-            setPlaybackDurations((prev) => prev.filter((_, i) => i !== index));
-            setHasEnded((prev) => prev.filter((_, i) => i !== index));
-          },
-        },
-      ]
-    );
   };
 
   const goToStudyMaterials = useCallback(
@@ -250,89 +183,107 @@ const PreviousTranscriptionsScreen: React.FC<
     [recordings, navigation]
   );
 
-  const renderRecordingItem = ({
-    item,
-    index,
-  }: {
-    item: Recording;
-    index: number;
-  }) => (
-    <View style={styles.recordingContainer}>
-      <Text style={styles.recordingTitle}>
-        Recording {index + 1} - {item.duration}
-      </Text>
-      <View style={styles.controlsAndSummaryContainer}>
-        <View style={styles.controlsContainer}>
-          <TouchableOpacity
-            onPress={() => togglePlayPause(index)}
-            style={styles.iconButton}
-          >
-            {isPlaying[index] ? (
-              <PauseCircle size={32} color="#007AFF" />
-            ) : (
-              <PlayCircle size={32} color="#007AFF" />
-            )}
-          </TouchableOpacity>
-          {hasEnded[index] && (
+  const handleDeleteRecording = async (index: number) => {
+    Alert.alert("Delete Recording", "Are you sure you want to delete this recording?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setRecordings((prev) => prev.filter((_, i) => i !== index));
+          sounds.current[index]?.unloadAsync();
+          sounds.current = sounds.current.filter((_, i) => i !== index);
+          setPlaybackStatus((prev) => prev.filter((_, i) => i !== index));
+        },
+      },
+    ]);
+  };
+
+  const renderRecordingItem = useCallback(
+    ({ item, index }) => {
+      const status = playbackStatus[index];
+      return (
+        <View style={styles.recordingContainer}>
+          <Text style={styles.recordingTitle}>
+            Recording {index + 1} - {formatTime(item.duration)}
+          </Text>
+          <View style={styles.controlsAndSummaryContainer}>
+            <View style={styles.controlsContainer}>
+              <TouchableOpacity onPress={() => togglePlayPause(index)} style={styles.iconButton}>
+                {status.isPlaying ? (
+                  <PauseCircle size={32} color="#007AFF" />
+                ) : (
+                  <PlayCircle size={32} color="#007AFF" />
+                )}
+              </TouchableOpacity>
+              {status.hasEnded && (
+                <TouchableOpacity
+                  onPress={() => playRecording(recordings[index].file, index)}
+                  style={styles.iconButton}
+                >
+                  <RotateCcw size={32} color="#007AFF" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => Sharing.shareAsync(item.file)}
+                style={styles.iconButton}
+              >
+                <Share2 size={32} color="#007AFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteRecording(index)}
+                style={styles.iconButton}
+              >
+                <Trash2 size={32} color="#FF3B30" />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
-              onPress={() => restartRecording(index)}
-              style={styles.iconButton}
+              onPress={() => goToStudyMaterials(index)}
+              style={styles.viewSummaryButton}
             >
-              <RotateCcw size={32} color="#007AFF" />
+              <FileText size={24} color="#FFFFFF" />
+              <Text style={styles.viewSummaryText}>View Summary</Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            onPress={() => Sharing.shareAsync(item.file)}
-            style={styles.iconButton}
-          >
-            <Share2 size={32} color="#007AFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleDeleteRecording(index)}
-            style={styles.iconButton}
-          >
-            <Trash2 size={32} color="#FF3B30" />
-          </TouchableOpacity>
+          </View>
+          <View style={styles.progressContainer}>
+            <Slider
+              style={styles.slider}
+              value={status.position}
+              minimumValue={0}
+              maximumValue={item.duration}
+              onValueChange={(value) => {
+                sounds.current[index]?.setPositionAsync(value);
+                setPlaybackStatus((prev) =>
+                  prev.map((playback, i) => (i === index ? { ...playback, position: value } : playback))
+                );
+              }}
+              minimumTrackTintColor="#007AFF"
+              maximumTrackTintColor="#CCCCCC"
+              thumbTintColor="#007AFF"
+            />
+            <View style={styles.timeContainer}>
+              <Text style={styles.timeText}>{formatTime(status.position)}</Text>
+              <Text style={styles.timeText}>{formatTime(item.duration)}</Text>
+            </View>
+          </View>
         </View>
-        <TouchableOpacity
-          onPress={() => goToStudyMaterials(index)}
-          style={styles.viewSummaryButton}
-        >
-          <FileText size={24} color="#FFFFFF" />
-          <Text style={styles.viewSummaryText}>View Summary</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.progressContainer}>
-        <Slider
-          style={styles.slider}
-          value={playbackPositions[index]}
-          minimumValue={0}
-          maximumValue={playbackDurations[index]}
-          onValueChange={(value) => handleSeek(value, index)}
-          minimumTrackTintColor="#007AFF"
-          maximumTrackTintColor="#CCCCCC"
-          thumbTintColor="#007AFF"
-        />
-        <View style={styles.timeContainer}>
-          <Text style={styles.timeText}>
-            {formatTime(playbackPositions[index])}
-          </Text>
-          <Text style={styles.timeText}>
-            {formatTime(playbackDurations[index])}
-          </Text>
-        </View>
-      </View>
-    </View>
+      );
+    },
+    [playbackStatus, recordings]
   );
+
   return (
     <View style={styles.container}>
-      <FlatList
-        data={recordings}
-        renderItem={renderRecordingItem}
-        keyExtractor={(item, index) => index.toString()}
-      />
+      <FlatList data={recordings} renderItem={renderRecordingItem} keyExtractor={(item, index) => index.toString()} />
     </View>
   );
+};
+
+const formatTime = (milliseconds: number) => {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
 const styles = StyleSheet.create({
@@ -399,4 +350,5 @@ const styles = StyleSheet.create({
     color: "#777",
   },
 });
+
 export default PreviousTranscriptionsScreen;

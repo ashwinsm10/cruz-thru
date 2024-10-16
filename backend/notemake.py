@@ -53,3 +53,24 @@ def generate_flashcards(notes_text):
 
 
     return data
+
+
+def answer_question(notes_text, user_question):
+    prompt = f"""
+    I have the following notes from a lecture transcript:
+
+    {notes_text}
+
+    Now, answer the following question based on these notes:
+    
+    Question: {user_question}
+    
+    Provide a simple answer using the notes as reference.
+    """
+
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    response = model.generate_content(prompt)
+
+    return response.text
+
